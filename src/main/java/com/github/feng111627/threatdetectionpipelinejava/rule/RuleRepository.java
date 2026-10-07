@@ -1,8 +1,12 @@
 package com.github.feng111627.threatdetectionpipelinejava.rule;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 规则仓库：加载规则资源，维护版本化的不可变快照（当前快照 + 历史快照）。
@@ -11,15 +15,31 @@ import java.util.List;
 @Component
 public class RuleRepository {
 
+    private final RuleLoader loader;
+    private final AtomicReference<RuleSet> current = new AtomicReference<>();
+    private final CopyOnWriteArrayList<RuleSet> history = new CopyOnWriteArrayList<>();
+
+    public RuleRepository(RuleLoader loader,
+                          @Value("${threat.rules-resource:rules-default.json}") String defaultResource) {
+        this.loader = loader;
+        this.current.set(load(defaultResource));
+    }
+
     public RuleSet current() {
-        throw new UnsupportedOperationException("骨架占位");
+        return current.get();
     }
 
     public RuleSet load(String resource) {
-        throw new UnsupportedOperationException("骨架占位");
+        RuleSet ruleSet = loader.loadFromClasspath(resource);
+        RuleSet previous = current.getAndSet(ruleSet);
+        if (previous != null) {
+            history.addIfAbsent(previous);
+        }
+        history.addIfAbsent(ruleSet);
+        return ruleSet;
     }
 
     public List<RuleSet> history() {
-        throw new UnsupportedOperationException("骨架占位");
+        return new ArrayList<>(history);
     }
 }
