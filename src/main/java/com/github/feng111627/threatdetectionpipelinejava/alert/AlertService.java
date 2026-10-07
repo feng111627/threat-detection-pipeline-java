@@ -67,6 +67,9 @@ public class AlertService {
                 return store.put(existing);
             }
 
+            AlertTransition created = new AlertTransition(Instant.now(clock), null,
+                    AlertStatus.NEW, "system", "规则 " + seed.ruleId()
+                    + "@" + seed.ruleVersion() + " 触发，告警创建");
             Alert alert = new Alert(
                     alertId(seed),
                     seed.ruleId(),
@@ -79,10 +82,7 @@ public class AlertService {
                     new ArrayList<>(seed.eventIds()),
                     seed.evidence(),
                     AlertStatus.NEW,
-                    new ArrayList<>());
-            alert.addTransition(new AlertTransition(Instant.now(clock), null,
-                    AlertStatus.NEW, "system", "规则 " + seed.ruleId()
-                    + "@" + seed.ruleVersion() + " 触发，告警创建"));
+                    new ArrayList<>(List.of(created)));
             store.putIfAbsent(alert);
             return store.findByCorrelationKey(seed.correlationKey()).orElse(alert);
         }
