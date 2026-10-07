@@ -1,12 +1,15 @@
 package com.github.feng111627.threatdetectionpipelinejava.model;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * 告警。规则版本固化在告警上，保证规则调整后历史结论仍可复现。
- * 状态的合法性由 AlertService 校验，本类只承载数据与流转历史。
+ * 状态的合法性由 AlertService 校验，本类承载数据、合并内容与流转历史。
  */
 public class Alert {
 
@@ -18,12 +21,12 @@ public class Alert {
     private final String title;
     private final Instant firstEventTime;
     private final Instant triggerTime;
-    private final List<String> eventIds;
-    private final Map<String, Object> evidence;
+    private final List<String> eventIds = new ArrayList<>();
+    private final Map<String, Object> evidence = new LinkedHashMap<>();
+    private final List<AlertTransition> history = new ArrayList<>();
 
     private AlertStatus status;
     private String mergedInto;
-    private final List<AlertTransition> history;
 
     public Alert(String alertId, String ruleId, String ruleVersion, String correlationKey,
                  Severity severity, String title, Instant firstEventTime, Instant triggerTime,
@@ -37,10 +40,16 @@ public class Alert {
         this.title = title;
         this.firstEventTime = firstEventTime;
         this.triggerTime = triggerTime;
-        this.eventIds = eventIds;
-        this.evidence = evidence;
+        if (eventIds != null) {
+            this.eventIds.addAll(eventIds);
+        }
+        if (evidence != null) {
+            this.evidence.putAll(evidence);
+        }
         this.status = status;
-        this.history = history;
+        if (history != null) {
+            this.history.addAll(history);
+        }
     }
 
     public String alertId() {
@@ -76,11 +85,11 @@ public class Alert {
     }
 
     public List<String> eventIds() {
-        return eventIds;
+        return Collections.unmodifiableList(eventIds);
     }
 
     public Map<String, Object> evidence() {
-        return evidence;
+        return Collections.unmodifiableMap(evidence);
     }
 
     public AlertStatus status() {
@@ -92,7 +101,23 @@ public class Alert {
     }
 
     public List<AlertTransition> history() {
-        return history;
+        return Collections.unmodifiableList(history);
+    }
+
+    /** 追加事件链中尚未包含的事件 ID，返回新加入的数量。 */
+    public int appendEventIds(List<String> ids) {
+        int added = 0;
+        for (String id : ids) {
+            if (!eventIds.contains(id)) {
+                eventIds.add(id);
+                added++;
+            }
+        }
+        return added;
+    }
+
+    public void putEvidence(String key, Object value) {
+        evidence.put(key, value);
     }
 
     public void setMergedInto(String mergedInto) {
@@ -101,5 +126,9 @@ public class Alert {
 
     public void setStatus(AlertStatus status) {
         this.status = status;
+    }
+
+    public void addTransition(AlertTransition transition) {
+        history.add(transition);
     }
 }

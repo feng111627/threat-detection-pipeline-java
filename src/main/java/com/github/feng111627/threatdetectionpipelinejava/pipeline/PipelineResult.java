@@ -8,12 +8,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 一次批次处理的完整结果：接入、拒绝、产出告警与新生成的告警均可核对。
+ * 一次批次处理的完整结果：接入、拒绝、迟到、产出告警均可核对。
+ * alerts 为本次实际新创建的告警（重复消费/同链补充不重复计入）。
  */
 public class PipelineResult {
 
     private final List<NormalizedEvent> accepted = new ArrayList<>();
     private final List<RejectedRecord> rejected = new ArrayList<>();
+    private final List<NormalizedEvent> late = new ArrayList<>();
     private final List<Alert> alerts = new ArrayList<>();
 
     public List<NormalizedEvent> accepted() {
@@ -24,7 +26,15 @@ public class PipelineResult {
         return rejected;
     }
 
+    public List<NormalizedEvent> late() {
+        return late;
+    }
+
     public List<Alert> alerts() {
         return alerts;
+    }
+
+    public int totalIn() {
+        return accepted.size() + rejected.size();
     }
 }

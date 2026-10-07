@@ -14,21 +14,38 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class AlertStore {
 
-    private final ConcurrentHashMap<String, Alert> alerts = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Alert> byId = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> alertIdByCorrelationKey = new ConcurrentHashMap<>();
 
     public Optional<Alert> findById(String alertId) {
-        return Optional.ofNullable(alerts.get(alertId));
+        return Optional.ofNullable(byId.get(alertId));
     }
 
     public Optional<Alert> findByCorrelationKey(String correlationKey) {
-        throw new UnsupportedOperationException("骨架占位");
+        String id = alertIdByCorrelationKey.get(correlationKey);
+        return id == null ? Optional.empty() : Optional.ofNullable(byId.get(id));
     }
 
     public List<Alert> findAll() {
-        return new ArrayList<>(alerts.values());
+        return new ArrayList<>(byId.values());
     }
 
-    public void put(Alert alert) {
-        alerts.put(alert.alertId(), alert);
+    /**
+     * 落库一条新告警并建立 correlationKey 索引。
+     *
+     * @return true 表示新建成功；false 表示该 correlationKey 已存在（幂等命中）
+     */
+    public boolean putIfAbsent(Alert alert) {
+        String previous = alertIdByCorrelationKey.putIfAbsent(alert.correlationKey(), alert.alertId());
+        if (previous != null) {
+            return false;
+        }
+        byId.put(alert.alertId(), alert);
+        return true;
+    }
+
+    public Alert put(Alert alert) {
+        byId.put(alert.alertId(), alert);
+        return alert;
     }
 }
