@@ -15,7 +15,10 @@ import com.github.feng111627.threatdetectionpipelinejava.model.RejectionReason;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -28,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * 业务域一：多来源事件接入与归一化。
  */
-class IngestNormalizationTest extends BusinessTestBase {
+class Domain1IngestNormalizationTest extends BusinessTestBase {
 
     private EventNormalizer normalizer;
     private DedupCache dedupCache;
@@ -63,7 +66,8 @@ class IngestNormalizationTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例1.1 三种来源(JSON/CSV/键值对)都能归一化为统一事件")
+    @Order(1)
+    @DisplayName("用例1.01 三种来源(JSON/CSV/键值对)都能归一化为统一事件")
     void multiSourceNormalize() {
         List<RawEvent> batch = List.of(
                 raw("firewall", "f1", "{\"event_id\":\"f1\",\"type\":\"FIREWALL_BLOCK\","
@@ -79,7 +83,8 @@ class IngestNormalizationTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例1.2 支持多种时间戳格式：ISO/空格格式/epochMillis")
+    @Order(2)
+    @DisplayName("用例1.02 支持多种时间戳格式：ISO/空格格式/epochMillis")
     void timestampFormats() {
         List<RawEvent> batch = List.of(
                 raw("firewall", "t1", "{\"event_id\":\"t1\",\"type\":\"FIREWALL_BLOCK\","
@@ -93,7 +98,8 @@ class IngestNormalizationTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例1.3 JSON 非法归类为 PARSE/P003，而非业务校验")
+    @Order(3)
+    @DisplayName("用例1.03 JSON 非法归类为 PARSE/P003，而非业务校验")
     void malformedJsonIsParseError() {
         RejectedRecord r = onlyRejection("firewall", "bad", "{oops");
         assertEquals(RejectionCategory.PARSE, r.reason().category());
@@ -101,7 +107,8 @@ class IngestNormalizationTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例1.4 CSV 列数非法归类为 PARSE/P004")
+    @Order(4)
+    @DisplayName("用例1.04 CSV 列数非法归类为 PARSE/P004")
     void malformedCsvIsParseError() {
         RejectedRecord r = onlyRejection("edr", "bad", "a,b,c");
         assertEquals(RejectionCategory.PARSE, r.reason().category());
@@ -109,7 +116,8 @@ class IngestNormalizationTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例1.5 键值对片段非法归类为 PARSE/P005")
+    @Order(5)
+    @DisplayName("用例1.05 键值对片段非法归类为 PARSE/P005")
     void malformedKvIsParseError() {
         RejectedRecord r = onlyRejection("iam", "bad", "event_id=bad;nonsense");
         assertEquals(RejectionCategory.PARSE, r.reason().category());
@@ -117,7 +125,8 @@ class IngestNormalizationTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例1.6 缺少时间戳归类为 PARSE/P006，时间戳格式非法归类为 PARSE/P007")
+    @Order(6)
+    @DisplayName("用例1.06 缺少时间戳归类为 PARSE/P006，时间戳格式非法归类为 PARSE/P007")
     void missingAndMalformedTimestamp() {
         RejectedRecord missing = onlyRejection("firewall", "m",
                 "{\"event_id\":\"m\",\"type\":\"FIREWALL_BLOCK\",\"src_ip\":\"1.1.1.1\"}");
@@ -128,7 +137,8 @@ class IngestNormalizationTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例1.7 缺少事件类型/主体归类为 VALIDATION，与 PARSE 明确区分")
+    @Order(7)
+    @DisplayName("用例1.07 缺少事件类型/主体归类为 VALIDATION，与 PARSE 明确区分")
     void fieldMissingIsValidationError() {
         RejectedRecord noType = onlyRejection("firewall", "v1",
                 "{\"event_id\":\"v1\",\"ts\":\"2026-10-07T11:59:00Z\",\"src_ip\":\"1.1.1.1\"}");
@@ -141,7 +151,8 @@ class IngestNormalizationTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例1.8 时间戳在未来/过早归类为 VALIDATION（V005/V006）")
+    @Order(8)
+    @DisplayName("用例1.08 时间戳在未来/过早归类为 VALIDATION（V005/V006）")
     void timestampOutOfRangeIsValidationError() {
         RejectedRecord future = onlyRejection("firewall", "f",
                 "{\"event_id\":\"f\",\"type\":\"FIREWALL_BLOCK\",\"ts\":\"2099-01-01T00:00:00Z\",\"src_ip\":\"1.1.1.1\"}");
@@ -153,7 +164,8 @@ class IngestNormalizationTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例1.9 未知来源/空报文分别给出 P002/P001，不静默丢弃")
+    @Order(9)
+    @DisplayName("用例1.09 未知来源/空报文分别给出 P002/P001，不静默丢弃")
     void unknownSourceAndEmptyPayload() {
         RejectedRecord unknown = onlyRejection("ids-probe", "x", "anything");
         assertEquals(RejectionReason.UNSUPPORTED_FORMAT, unknown.reason());
@@ -162,6 +174,7 @@ class IngestNormalizationTest extends BusinessTestBase {
     }
 
     @Test
+    @Order(10)
     @DisplayName("用例1.10 缺失来源归类为 VALIDATION/V001")
     void missingSource() {
         RejectedRecord r = onlyRejection(null, "n", "event_id=n;type=LOGIN_FAIL;ts=2026-10-07T11:59:00Z;user=a");
@@ -169,6 +182,7 @@ class IngestNormalizationTest extends BusinessTestBase {
     }
 
     @Test
+    @Order(11)
     @DisplayName("用例1.11 重复记录第二次归类为 VALIDATION/V007 且只放行一次")
     void duplicateRejectedOnce() {
         RawEvent event = raw("iam", "dup",
@@ -181,6 +195,7 @@ class IngestNormalizationTest extends BusinessTestBase {
     }
 
     @Test
+    @Order(12)
     @DisplayName("用例1.12 任何记录都不静默丢弃：接受数+拒绝数=输入数")
     void noSilentDrop() {
         List<RawEvent> batch = List.of(

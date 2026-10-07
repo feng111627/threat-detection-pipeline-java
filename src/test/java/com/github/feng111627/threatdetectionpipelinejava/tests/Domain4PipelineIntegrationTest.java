@@ -13,7 +13,10 @@ import com.github.feng111627.threatdetectionpipelinejava.simulator.LocalEventSim
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
@@ -37,7 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 并发接入、乱序/迟到、重复消费、规则调整 四类场景下的稳定性与可解释性。
  */
 @SpringBootTest(properties = "spring.main.web-application-type=none")
-class PipelineIntegrationTest extends BusinessTestBase {
+class Domain4PipelineIntegrationTest extends BusinessTestBase {
 
     private static final Instant T0 = Instant.parse("2026-10-07T11:00:00Z");
 
@@ -69,7 +72,8 @@ class PipelineIntegrationTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例4.1 暴力破解场景端到端：乱序到齐产出 1 条告警，迟到事件不计入")
+    @Order(1)
+    @DisplayName("用例4.01 暴力破解场景端到端：乱序到齐产出 1 条告警，迟到事件不计入")
     void endToEndBruteForceOutOfOrderAndLate() {
         List<RawEvent> batch = new ArrayList<>();
         // 6 条同 user/ip 的 LOGIN_FAIL，顺序故意打乱；阈值 5、窗口 60s、迟到宽限 30s
@@ -96,7 +100,8 @@ class PipelineIntegrationTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例4.2 乱序攻击链端到端：逆序发送仍能按事件时间完成时序关联")
+    @Order(2)
+    @DisplayName("用例4.02 乱序攻击链端到端：逆序发送仍能按事件时间完成时序关联")
     void endToEndKillChainReordered() {
         List<RawEvent> chain = simulator.generateScenario(LocalEventSimulator.SCENARIO_KILL_CHAIN);
         PipelineResult result = pipeline.processBatch(chain);
@@ -109,7 +114,8 @@ class PipelineIntegrationTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例4.3 同一批数据重复消费：第二次零新增、零新告警，结论可复现")
+    @Order(3)
+    @DisplayName("用例4.03 同一批数据重复消费：第二次零新增、零新告警，结论可复现")
     void replayBatchIsIdempotent() {
         List<RawEvent> batch = simulator.generateScenario(LocalEventSimulator.SCENARIO_BRUTE_FORCE);
         PipelineResult first = pipeline.processBatch(batch);
@@ -126,7 +132,8 @@ class PipelineIntegrationTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例4.4 并发接入：多线程同时提交批次，告警数量与状态始终一致")
+    @Order(4)
+    @DisplayName("用例4.04 并发接入：多线程同时提交批次，告警数量与状态始终一致")
     void concurrentIngestionConsistent() throws InterruptedException {
         int threadCount = 16;
         ExecutorService pool = Executors.newFixedThreadPool(8);
@@ -176,7 +183,8 @@ class PipelineIntegrationTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例4.5 并发重复消费：相同批次被多线程重复提交，不产生重复告警")
+    @Order(5)
+    @DisplayName("用例4.05 并发重复消费：相同批次被多线程重复提交，不产生重复告警")
     void concurrentReplayNoDuplicates() throws InterruptedException {
         List<RawEvent> batch = new ArrayList<>();
         for (int k = 1; k <= 5; k++) {
@@ -208,7 +216,8 @@ class PipelineIntegrationTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例4.6 规则调整：上调阈值后旧数据不再触发，历史告警仍固化旧版本可复现")
+    @Order(6)
+    @DisplayName("用例4.06 规则调整：上调阈值后旧数据不再触发，历史告警仍固化旧版本可复现")
     void ruleAdjustmentThresholdAndHistoryReproducible() {
         // v1 阈值 3 可以触发
         List<RawEvent> threeBlocks = new ArrayList<>();
@@ -243,7 +252,8 @@ class PipelineIntegrationTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例4.7 规则调整：v2 启用此前关闭的恶意软件规则后，相同事件可以触发")
+    @Order(7)
+    @DisplayName("用例4.07 规则调整：v2 启用此前关闭的恶意软件规则后，相同事件可以触发")
     void ruleAdjustmentEnablesDisabledRule() {
         // v1 中 R-MALWARE 默认关闭
         List<RawEvent> malware = List.of(

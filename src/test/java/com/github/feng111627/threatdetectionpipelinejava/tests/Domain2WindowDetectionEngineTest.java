@@ -12,7 +12,10 @@ import com.github.feng111627.threatdetectionpipelinejava.rule.RuleType;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -28,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * 业务域二：可配置规则与基于窗口的关联（阈值/频率/时序、乱序/迟到/重复）。
  */
-class WindowDetectionEngineTest extends BusinessTestBase {
+class Domain2WindowDetectionEngineTest extends BusinessTestBase {
 
     private static final Instant T0 = Instant.parse("2026-10-07T10:00:00Z");
     private DetectionEngine engine;
@@ -78,7 +81,8 @@ class WindowDetectionEngineTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例2.1 阈值规则：窗口内事件数达到阈值才触发一次")
+    @Order(1)
+    @DisplayName("用例2.01 阈值规则：窗口内事件数达到阈值才触发一次")
     void thresholdFiresOnce() {
         RuleSet set = rules(thresholdRule(3, 60, 10, List.of("sourceIp")));
         List<AlertSeed> seeds = feed(set,
@@ -93,7 +97,8 @@ class WindowDetectionEngineTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例2.2 乱序到达不影响判定：最晚到齐时触发，证据按事件时间有序")
+    @Order(2)
+    @DisplayName("用例2.02 乱序到达不影响判定：最晚到齐时触发，证据按事件时间有序")
     void outOfOrderStillFires() {
         RuleSet set = rules(thresholdRule(3, 60, 30, List.of("sourceIp")));
         List<AlertSeed> seeds = feed(set,
@@ -106,7 +111,8 @@ class WindowDetectionEngineTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例2.3 重复到达的事件不改变计数，不重复产出告警")
+    @Order(3)
+    @DisplayName("用例2.03 重复到达的事件不改变计数，不重复产出告警")
     void duplicateEventsIgnored() {
         RuleSet set = rules(thresholdRule(2, 60, 30, List.of("sourceIp")));
         List<AlertSeed> seeds = new ArrayList<>();
@@ -118,7 +124,8 @@ class WindowDetectionEngineTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例2.4 迟到事件（窗口已关闭）被标记且不触发/复活告警")
+    @Order(4)
+    @DisplayName("用例2.04 迟到事件（窗口已关闭）被标记且不触发/复活告警")
     void lateEventAfterWindowClose() {
         RuleSet set = rules(thresholdRule(3, 60, 0, List.of("sourceIp")));
         // 先凑齐 3 条并用更晚事件把 watermark 推过窗口结束点
@@ -135,7 +142,8 @@ class WindowDetectionEngineTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例2.5 不同分组互不影响：A 组触发不影响 B 组计数")
+    @Order(5)
+    @DisplayName("用例2.05 不同分组互不影响：A 组触发不影响 B 组计数")
     void differentGroupsIsolated() {
         RuleSet set = rules(thresholdRule(2, 60, 10, List.of("sourceIp")));
         List<AlertSeed> seeds = feed(set,
@@ -149,7 +157,8 @@ class WindowDetectionEngineTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例2.6 跨窗口事件分别计数：不同窗口起始只影响各自窗口")
+    @Order(6)
+    @DisplayName("用例2.06 跨窗口事件分别计数：不同窗口起始只影响各自窗口")
     void separateWindows() {
         RuleSet set = rules(thresholdRule(2, 60, 0, List.of("sourceIp")));
         List<AlertSeed> seeds = feed(set,
@@ -160,7 +169,8 @@ class WindowDetectionEngineTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例2.7 时序规则：乱序到达仍按事件时间识别出完整序列")
+    @Order(7)
+    @DisplayName("用例2.07 时序规则：乱序到达仍按事件时间识别出完整序列")
     void sequenceOutOfOrder() {
         RuleSet set = rules(sequenceRule(300, 30));
         NormalizedEvent login = event("s1", "LOGIN_SUCCESS", "3.3.3.3", 0);
@@ -173,7 +183,8 @@ class WindowDetectionEngineTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例2.8 时序规则：序列不完整不触发")
+    @Order(8)
+    @DisplayName("用例2.08 时序规则：序列不完整不触发")
     void sequenceIncomplete() {
         RuleSet set = rules(sequenceRule(300, 30));
         List<AlertSeed> seeds = feed(set,
@@ -183,7 +194,8 @@ class WindowDetectionEngineTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例2.9 被禁用的规则不产出任何结果")
+    @Order(9)
+    @DisplayName("用例2.09 被禁用的规则不产出任何结果")
     void disabledRuleSkipped() {
         DetectionRule disabled = new DetectionRule("R-OFF", "v1", false, RuleType.THRESHOLD,
                 "LOGIN_FAIL", null, Map.of(), 1, 60, 10, List.of(), List.of("sourceIp"),
@@ -194,6 +206,7 @@ class WindowDetectionEngineTest extends BusinessTestBase {
     }
 
     @Test
+    @Order(10)
     @DisplayName("用例2.10 同一批数据重复消费：窗口内不再产生第二个种子")
     void replayBatchNoDuplicateSeed() {
         RuleSet set = rules(thresholdRule(2, 60, 30, List.of("sourceIp")));

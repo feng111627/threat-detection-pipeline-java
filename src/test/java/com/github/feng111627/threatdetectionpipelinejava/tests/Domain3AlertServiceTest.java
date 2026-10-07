@@ -10,7 +10,10 @@ import com.github.feng111627.threatdetectionpipelinejava.model.Severity;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -33,7 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * 业务域三：告警去重、事件链合并与合法状态流转（含并发一致性）。
  */
-class AlertServiceTest extends BusinessTestBase {
+class Domain3AlertServiceTest extends BusinessTestBase {
 
     private static final Instant T0 = Instant.parse("2026-10-07T10:00:00Z");
     private AlertStore store;
@@ -56,7 +59,8 @@ class AlertServiceTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例3.1 相同 correlationKey 只落一条告警（幂等去重）")
+    @Order(1)
+    @DisplayName("用例3.01 相同 correlationKey 只落一条告警（幂等去重）")
     void idempotentByCorrelationKey() {
         AlertSeed seed = seed("R1", "v1", "R1|0|a", List.of("e1", "e2"));
         Alert first = service.ingestSeed(seed);
@@ -71,7 +75,8 @@ class AlertServiceTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例3.2 同事件链补充的事件被合并进同一告警，不新增告警数量")
+    @Order(2)
+    @DisplayName("用例3.02 同事件链补充的事件被合并进同一告警，不新增告警数量")
     void sameChainEventsMergedIntoOne() {
         Alert a = service.ingestSeed(seed("R1", "v1", "R1|0|a", List.of("e1", "e2")));
         Alert b = service.ingestSeed(seed("R1", "v1", "R1|0|a", List.of("e2", "e3", "e4")));
@@ -82,7 +87,8 @@ class AlertServiceTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例3.3 合法状态流转 NEW->ACK->RESOLVED->重开 全部记录审计")
+    @Order(3)
+    @DisplayName("用例3.03 合法状态流转 NEW->ACK->RESOLVED->重开 全部记录审计")
     void legalTransitionsAudited() {
         Alert a = service.ingestSeed(seed("R1", "v1", "R1|0|a", List.of("e1")));
         service.acknowledge(a.alertId(), "analyst", "开始处置");
@@ -99,7 +105,8 @@ class AlertServiceTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例3.4 非法流转 NEW->MERGED 之外的跳跃（NEW 直接…）及 MERGED 终态被拒绝")
+    @Order(4)
+    @DisplayName("用例3.04 非法流转 NEW->MERGED 之外的跳跃（NEW 直接…）及 MERGED 终态被拒绝")
     void illegalTransitionsRejected() {
         Alert a = service.ingestSeed(seed("R1", "v1", "R1|0|a", List.of("e1")));
         // RESOLVED -> NEW 非法（只能重开到 ACKNOWLEDGED）
@@ -110,7 +117,8 @@ class AlertServiceTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例3.5 合并同规则告警：子告警进入 MERGED 终态，父告警吸收事件并记录追溯")
+    @Order(5)
+    @DisplayName("用例3.05 合并同规则告警：子告警进入 MERGED 终态，父告警吸收事件并记录追溯")
     void mergeSameRule() {
         Alert parent = service.ingestSeed(seed("R1", "v1", "R1|0|a", List.of("e1")));
         Alert child = service.ingestSeed(seed("R1", "v1", "R1|60|a", List.of("e2", "e3")));
@@ -127,7 +135,8 @@ class AlertServiceTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例3.6 不同规则的告警不允许合并")
+    @Order(6)
+    @DisplayName("用例3.06 不同规则的告警不允许合并")
     void mergeDifferentRuleRejected() {
         Alert a = service.ingestSeed(seed("R1", "v1", "R1|0|a", List.of("e1")));
         Alert b = service.ingestSeed(seed("R2", "v1", "R2|0|a", List.of("e2")));
@@ -135,7 +144,8 @@ class AlertServiceTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例3.7 告警固化规则版本，便于规则调整后复现历史结论")
+    @Order(7)
+    @DisplayName("用例3.07 告警固化规则版本，便于规则调整后复现历史结论")
     void ruleVersionPinned() {
         Alert a = service.ingestSeed(seed("R1", "2026-10-07-v1", "R1|0|a", List.of("e1")));
         assertEquals("2026-10-07-v1", a.ruleVersion());
@@ -144,7 +154,8 @@ class AlertServiceTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例3.8 并发接入同一事件链：最终恰好一条告警，事件链完整，计数一致")
+    @Order(8)
+    @DisplayName("用例3.08 并发接入同一事件链：最终恰好一条告警，事件链完整，计数一致")
     void concurrentSameChainConsistent() throws InterruptedException {
         int threads = 32;
         ExecutorService pool = Executors.newFixedThreadPool(8);
@@ -180,7 +191,8 @@ class AlertServiceTest extends BusinessTestBase {
     }
 
     @Test
-    @DisplayName("用例3.9 并发接入不同事件链：数量与每条链归属保持一致")
+    @Order(9)
+    @DisplayName("用例3.09 并发接入不同事件链：数量与每条链归属保持一致")
     void concurrentDifferentChainsConsistent() throws InterruptedException {
         int chains = 50;
         ExecutorService pool = Executors.newFixedThreadPool(10);
