@@ -4,15 +4,24 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 单条事件进入引擎后的结果：可能触发的告警种子，以及是否被判定为迟到事件。
+ * 单条事件对某条规则的求值结果：是否匹配、是否迟到、本次新触发的告警种子。
  */
 public class EngineOutcome {
 
     private final List<AlertSeed> seeds = new ArrayList<>();
+    private boolean matched;
     private boolean late;
 
     public List<AlertSeed> seeds() {
         return seeds;
+    }
+
+    public boolean isMatched() {
+        return matched;
+    }
+
+    public void setMatched(boolean matched) {
+        this.matched = matched;
     }
 
     public boolean isLate() {

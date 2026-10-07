@@ -8,7 +8,6 @@ import org.springframework.stereotype.Component;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -35,44 +34,48 @@ public class DetectionEngine {
     }
 
     /**
-     * 处理一条归一化事件，返回本次新触发的告警种子。
+     * 处理一条归一化事件：对所有启用规则求值，返回本次新触发的种子与迟到标记。
      */
-    public List<AlertSeed> process(NormalizedEvent event, RuleSet ruleSet) {
-        List<AlertSeed> produced = new ArrayList<>();
+    public EngineOutcome process(NormalizedEvent event, RuleSet ruleSet) {
+        EngineOutcome aggregate = new EngineOutcome();
         for (DetectionRule rule : ruleSet.rules()) {
             if (!rule.enabled()) {
                 continue;
             }
-            long eventMs = event.eventTime().toEpochMilli();
-            long newMax = maxEventTimeMsByRule.merge(rule.id(), eventMs, Math::max);
 
-            Duration lateness = Duration.ofSeconds(rule.allowedLatenessSeconds());
-            // watermark 可能因为乱序事件而回退；迟到判定只与「曾经见过的最大时间」有关
-            long watermarkMs = Math.max(0L, newMax - lateness.toMillis());
-            Instant ruleWatermark = Instant.ofEpochMilli(watermarkMs);
+            EngineOutcome outcome = windowManager.addEvent(rule, event);
+            aggregate.seeds().addAll(outcome.seeds());
+            if (outcome.isLate()) {
+                aggregate.setLate(true);
+            }
 
-            EngineOutcome outcome = windowManager.addEvent(rule, event, ruleWatermark);
-            produced.addAll(outcome.seeds());
-
-            windowManager.closeExpiredWindows(ruleWatermark);
+            // 只有真正匹配该规则的事件才能推进它的 watermark，
+            // 无关类型/来源的事件不得关闭本规则的窗口。
+            // 先求值再推进，保证同批次乱序事件不会被误判为迟到。
+            if (outcome.isMatched()) {
+                long eventMs = event.eventTime().toEpochMilli();
+                long newMax = maxEventTimeMsByRule.merge(rule.id(), eventMs, Math::max);
+                Duration lateness = Duration.ofSeconds(rule.allowedLatenessSeconds());
+                long watermarkMs = Math.max(0L, newMax - lateness.toMillis());
+                windowManager.closeExpiredWindows(Instant.ofEpochMilli(watermarkMs));
+            }
         }
-        return List.copyOf(produced);
+        return aggregate;
     }
 
     /**
      * 按当前系统时间推进全部规则的 watermark 并关闭过期窗口。
-     * 批处理结束后调用，保证基于 wall-clock 的窗口能及时收尾。
      */
-    public List<AlertSeed> flush(RuleSet ruleSet) {
+    public void flush(RuleSet ruleSet) {
         Instant now = Instant.now(clock);
         for (DetectionRule rule : ruleSet.rules()) {
             windowManager.closeExpiredWindows(now);
         }
-        return List.of();
     }
 
     /** 重置引擎状态（主要用于测试隔离）。 */
     public void reset() {
         maxEventTimeMsByRule.clear();
+        windowManager.reset();
     }
 }

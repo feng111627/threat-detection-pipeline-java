@@ -2,6 +2,7 @@ package com.github.feng111627.threatdetectionpipelinejava.pipeline;
 
 import com.github.feng111627.threatdetectionpipelinejava.alert.AlertService;
 import com.github.feng111627.threatdetectionpipelinejava.engine.AlertSeed;
+import com.github.feng111627.threatdetectionpipelinejava.engine.EngineOutcome;
 import com.github.feng111627.threatdetectionpipelinejava.engine.DetectionEngine;
 import com.github.feng111627.threatdetectionpipelinejava.ingest.EventNormalizer;
 import com.github.feng111627.threatdetectionpipelinejava.model.Alert;
@@ -49,8 +50,11 @@ public class DetectionPipeline {
             result.accepted().addAll(ingestResult.accepted());
 
             for (NormalizedEvent event : ingestResult.accepted()) {
-                List<AlertSeed> seeds = engine.process(event, ruleSet);
-                for (AlertSeed seed : seeds) {
+                EngineOutcome outcome = engine.process(event, ruleSet);
+                if (outcome.isLate()) {
+                    result.late().add(event);
+                }
+                for (AlertSeed seed : outcome.seeds()) {
                     Alert before = alertService.findByCorrelationKey(seed.correlationKey());
                     Alert alert = alertService.ingestSeed(seed);
                     if (before == null) {
@@ -62,12 +66,22 @@ public class DetectionPipeline {
         }
     }
 
+    /**
+     * 重置全部内存状态（事件去重、引擎窗口、告警），用于场景/测试隔离。
+     */
+    public void reset() {
+        synchronized (batchLock) {
+            normalizer.clearDedup();
+            engine.reset();
+            alertService.clear();
+        }
+    }
+
     /** 按 wall-clock 推进 watermark、关闭过期窗口。 */
     public PipelineResult flush() {
         synchronized (batchLock) {
-            PipelineResult result = new PipelineResult();
             engine.flush(ruleRepository.current());
-            return result;
+            return new PipelineResult();
         }
     }
 }

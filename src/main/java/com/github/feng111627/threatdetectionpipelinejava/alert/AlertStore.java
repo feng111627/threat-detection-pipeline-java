@@ -48,4 +48,9 @@ public class AlertStore {
         byId.put(alert.alertId(), alert);
         return alert;
     }
+
+    public void clear() {
+        byId.clear();
+        alertIdByCorrelationKey.clear();
+    }
 }

@@ -84,6 +84,11 @@ public class EventNormalizer {
         result.rejected().add(new RejectedRecord(raw, reason, detail, Instant.now(clock)));
     }
 
+    /** 清空事件去重记录（用于测试/场景隔离）。 */
+    public void clearDedup() {
+        dedupCache.clear();
+    }
+
     private NormalizedEvent normalizeOne(RawEvent raw)
             throws EventParseException, EventValidationException {
         // 1. 来源路由

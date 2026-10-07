@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -20,9 +21,12 @@ import java.util.concurrent.ConcurrentMap;
  * <p>关键语义：
  * <ul>
  *   <li>窗口按「规则 × 分组 × 窗口起始」切分，窗口起始由事件时间向下取整得到，
- *       乱序/迟到事件仍归入其事件时间所属窗口，判定稳定可复现。</li>
- *   <li>watermark = max(eventTime) - allowedLateness。事件时间早于 watermark 视为迟到：
- *       迟到事件不再触发新告警（窗口已 finalize），仅登记，避免迟到数据污染结论。</li>
+ *       乱序事件仍归入其事件时间所属窗口，判定稳定可复现。</li>
+ *   <li>watermark = 观测到的最大事件时间 - allowedLateness；当 watermark 越过
+ *       窗口结束点时窗口被 finalize（关闭）。只要窗口尚未关闭，乱序/早到事件都会计入，
+ *       因此同一批次内无论发送顺序如何，判定结果一致。</li>
+ *   <li>迟到 = 事件所属窗口已经关闭。迟到事件只登记不参与求值，绝不会触发/复活告警；
+ *       已关闭窗口的起始点会被记录，迟到事件不会重新建出空窗口。</li>
  *   <li>窗口内重复 eventId 被忽略；未关闭窗口的重复到达最多只触发一次。</li>
  *   <li>SEQUENCE 规则要求序列中的事件按事件时间在窗口内先后出现（非连续）。</li>
  * </ul>
@@ -39,11 +43,12 @@ public class WindowManager {
         this.clock = clock;
     }
 
-    public EngineOutcome addEvent(DetectionRule rule, NormalizedEvent event, Instant currentWatermark) {
+    public EngineOutcome addEvent(DetectionRule rule, NormalizedEvent event) {
         EngineOutcome outcome = new EngineOutcome();
         if (!matches(rule, event)) {
             return outcome;
         }
+        outcome.setMatched(true);
 
         String groupValue = groupValue(rule, event);
         GroupWindows windows = windowsByRuleGroup.computeIfAbsent(
@@ -55,8 +60,8 @@ public class WindowManager {
         long windowStart = Math.floorDiv(eventMs, windowMs) * windowMs;
 
         synchronized (windows) {
-            // 迟到判定：调用方按该规则的允许迟到折算过 watermark（maxEventTime - lateness）
-            if (currentWatermark != null && eventMs < currentWatermark.toEpochMilli()) {
+            if (windows.closedStarts.contains(windowStart)) {
+                // 真正的迟到：所属窗口已 finalize，不参与求值、不复活窗口
                 outcome.setLate(true);
                 return outcome;
             }
@@ -75,8 +80,7 @@ public class WindowManager {
     }
 
     /**
-     * 关闭并移除所有 endMs + lateness &lt;= watermarkMs 的窗口。
-     * 关闭本身不额外产出告警（告警在达到条件时已产出；迟到数据也不会再产出）。
+     * 关闭并移除所有 endMs &lt;= watermarkMs 的窗口；关闭后登记窗口起始点，用于迟到识别。
      */
     public List<WindowKey> closeExpiredWindows(Instant currentWatermark) {
         List<WindowKey> closed = new ArrayList<>();
@@ -88,6 +92,7 @@ public class WindowManager {
                 windows.stateByStart.values().removeIf(state -> {
                     boolean expire = state.endMs() <= watermarkMs;
                     if (expire) {
+                        windows.closedStarts.add(state.startMs());
                         state.setClosed(true);
                         int sep = ruleAndGroup.indexOf('|');
                         closed.add(new WindowKey(ruleAndGroup.substring(0, sep),
@@ -98,6 +103,10 @@ public class WindowManager {
             }
         }
         return closed;
+    }
+
+    public void reset() {
+        windowsByRuleGroup.clear();
     }
 
     private boolean matches(DetectionRule rule, NormalizedEvent event) {
@@ -204,8 +213,9 @@ public class WindowManager {
         return value == null ? "-" : value;
     }
 
-    /** 单个「规则 × 分组」下的所有窗口集合。 */
+    /** 单个「规则 × 分组」下的窗口集合与已关闭窗口登记。 */
     private static final class GroupWindows {
         private final ConcurrentHashMap<Long, WindowState> stateByStart = new ConcurrentHashMap<>();
+        private final Set<Long> closedStarts = ConcurrentHashMap.newKeySet();
     }
 }

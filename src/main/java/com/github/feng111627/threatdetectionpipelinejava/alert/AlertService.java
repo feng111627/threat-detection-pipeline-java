@@ -160,6 +160,12 @@ public class AlertService {
         }
     }
 
+    public void clear() {
+        synchronized (mergeLock) {
+            store.clear();
+        }
+    }
+
     public Alert findByCorrelationKey(String correlationKey) {
         return store.findByCorrelationKey(correlationKey).orElse(null);
     }

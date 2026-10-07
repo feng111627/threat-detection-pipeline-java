@@ -1,0 +1,52 @@
+{
+  "version": "2026-10-07-v2",
+  "rules": [
+    {
+      "id": "R-FW-BLOCK-BRUST",
+      "type": "THRESHOLD",
+      "enabled": true,
+      "matchEventType": "FIREWALL_BLOCK",
+      "threshold": 4,
+      "windowSeconds": 60,
+      "allowedLatenessSeconds": 15,
+      "groupBy": ["sourceIp"],
+      "severity": "MEDIUM",
+      "title": "单 IP 一分钟内多次被防火墙拦截（阈值上调为 4）"
+    },
+    {
+      "id": "R-LOGIN-BRUTE-FORCE",
+      "type": "FREQUENCY",
+      "enabled": true,
+      "matchEventType": "LOGIN_FAIL",
+      "threshold": 5,
+      "windowSeconds": 60,
+      "allowedLatenessSeconds": 30,
+      "groupBy": ["user", "sourceIp"],
+      "severity": "HIGH",
+      "title": "账号 60 秒内登录失败达到 5 次（暴力破解）"
+    },
+    {
+      "id": "R-KILL-CHAIN",
+      "type": "SEQUENCE",
+      "enabled": true,
+      "sequence": ["LOGIN_SUCCESS", "PRIVILEGE_ESCALATION", "DATA_EXPORT"],
+      "windowSeconds": 300,
+      "allowedLatenessSeconds": 30,
+      "groupBy": ["sourceIp"],
+      "severity": "CRITICAL",
+      "title": "登录成功后提权并外发数据（攻击链时序）"
+    },
+    {
+      "id": "R-MALWARE",
+      "type": "THRESHOLD",
+      "enabled": true,
+      "matchEventType": "MALWARE_DETECTED",
+      "threshold": 1,
+      "windowSeconds": 300,
+      "allowedLatenessSeconds": 30,
+      "groupBy": ["sourceIp"],
+      "severity": "HIGH",
+      "title": "终端检出恶意软件（v2 启用）"
+    }
+  ]
+}
